@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wärmepumpen Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: rgba(255,255,255,0.08);
+    --text: #f0f2f8;
+    --muted: #7b82a0;
+
+    --coral-bg: #2d1a14;
+    --coral-border: #5c2e1e;
+    --coral-text: #f59572;
+    --coral-label: #c4724e;
+
+    --teal-bg: #0d2620;
+    --teal-border: #1a4f3f;
+    --teal-text: #5dd4a8;
+    --teal-label: #2fa07a;
+
+    --amber-bg: #241a07;
+    --amber-border: #4a3510;
+    --amber-text: #f0b848;
+    --amber-label: #b88520;
+
+    --blue-bg: #0d1e33;
+    --blue-border: #1a3d6a;
+    --blue-text: #6ab4f5;
+    --blue-label: #3080cc;
+
+    --purple-bg: #1a1230;
+    --purple-border: #3a2a70;
+    --purple-text: #a090f0;
+    --purple-label: #7060cc;
+
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+  }
+  .header-title h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  .header-title p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+  .avg-pill {
+    background: var(--amber-bg);
+    border: 1px solid var(--amber-border);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--amber-text);
+    font-weight: 500;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Metric cards ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+  .metric-card {
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    border: 1px solid;
+    transition: transform 0.15s;
+  }
+  .metric-card:hover { transform: translateY(-2px); }
+  .metric-card .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .metric-card .value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-card .unit {
+    font-size: 11px;
+    margin-top: 5px;
+  }
+
+  .card-coral  { background: var(--coral-bg);  border-color: var(--coral-border); }
+  .card-coral  .label, .card-coral  .unit { color: var(--coral-label); }
+  .card-coral  .value { color: var(--coral-text); }
+
+  .card-teal   { background: var(--teal-bg);   border-color: var(--teal-border); }
+  .card-teal   .label, .card-teal   .unit { color: var(--teal-label); }
+  .card-teal   .value { color: var(--teal-text); }
+
+  .card-amber  { background: var(--amber-bg);  border-color: var(--amber-border); }
+  .card-amber  .label, .card-amber  .unit { color: var(--amber-label); }
+  .card-amber  .value { color: var(--amber-text); }
+
+  .card-blue   { background: var(--blue-bg);   border-color: var(--blue-border); }
+  .card-blue   .label, .card-blue   .unit { color: var(--blue-label); }
+  .card-blue   .value { color: var(--blue-text); }
+
+  .card-purple { background: var(--purple-bg); border-color: var(--purple-border); }
+  .card-purple .label, .card-purple .unit { color: var(--purple-label); }
+  .card-purple .value { color: var(--purple-text); }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Chart legend ── */
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend-line { width: 18px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+
+  .chart-wrap { position: relative; height: 230px; }
+
+  /* ── Form ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .form-group label.coral  { color: var(--coral-label); }
+  .form-group label.teal   { color: var(--teal-label); }
+  .form-group label.blue   { color: var(--blue-label); }
+
+  .form-group input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 14px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus { border-color: rgba(255,255,255,0.25); }
+  .form-group input::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.4); }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn {
+    flex: 1;
+    min-width: 140px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-primary {
+    background: #3b82f6;
+    border-color: #2563eb;
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) { background: #2563eb; }
+
+  .btn-export {
+    background: var(--teal-bg);
+    border-color: var(--teal-border);
+    color: var(--teal-text);
+  }
+  .btn-export:hover { background: #0d3028; }
+
+  .success-msg {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--teal-text);
+    display: none;
+  }
+  .error-msg {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--coral-text);
+    display: none;
+  }
+
+  /* ── Entries list ── */
+  .entries-list { }
+  .entry-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .entry-row:last-child { border-bottom: none; }
+
+  .entry-date { color: var(--muted); min-width: 56px; }
+
+  .pill {
+    border-radius: 5px;
+    padding: 3px 9px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .pill-coral  { background: var(--coral-bg);  color: var(--coral-text);  border: 1px solid var(--coral-border); }
+  .pill-teal   { background: var(--teal-bg);   color: var(--teal-text);   border: 1px solid var(--teal-border); }
+  .pill-amber  { background: var(--amber-bg);  color: var(--amber-text);  border: 1px solid var(--amber-border); }
+  .pill-blue   { background: var(--blue-bg);   color: var(--blue-text);   border: 1px solid var(--blue-border); }
+
+  .entry-meta { color: var(--muted); margin-left: auto; font-size: 12px; }
+
+  .btn-delete {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .btn-delete:hover { color: var(--coral-text); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    padding: 2rem 0;
+    font-size: 14px;
+  }
+
+  /* ── Loading ── */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-top-color: var(--teal-text);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-title">
+      <h1>Wärmepumpen Tracker</h1>
+      <p>Tageswerte erfassen, auswerten &amp; exportieren</p>
+    </div>
+    <div class="avg-pill" id="avg-badge"><span class="spinner" id="avg-spinner"></span><span id="avg-text">Lade…</span></div>
+  </div>
+
+  <!-- Metric cards -->
+  <div class="metrics" id="metrics">
+    <div class="metric-card card-coral"><div class="label">Verbrauch</div><div class="value">–</div><div class="unit">kWh</div></div>
+    <div class="metric-card card-teal"><div class="label">Wärmeertrag</div><div class="value">–</div><div class="unit">kWh</div></div>
+    <div class="metric-card card-amber"><div class="label">JAZ heute</div><div class="value">–</div><div class="unit">Arbeitszahl</div></div>
+    <div class="metric-card card-blue"><div class="label">Außentemp.</div><div class="value">–</div><div class="unit">°C</div></div>
+    <div class="metric-card card-purple"><div class="label">Gesamt-JAZ</div><div class="value">–</div><div class="unit">Saison</div></div>
+  </div>
+
+  <!-- Chart -->
+  <div class="panel">
+    <div class="panel-title">Verlauf – letzte 14 Einträge</div>
+    <div class="chart-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#f59572"></span>Verbrauch kWh</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#5dd4a8"></span>Ertrag kWh</span>
+      <span class="legend-item"><span class="legend-line" style="background:#f0b848"></span>JAZ (rechts)</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+
+  <!-- Form -->
+  <div class="panel">
+    <div class="panel-title">Neuer Eintrag</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Datum</label>
+        <input type="date" id="inp-date">
+      </div>
+      <div class="form-group">
+        <label class="blue">Außentemperatur (°C)</label>
+        <input type="number" id="inp-temp" step="0.1" placeholder="5.0">
+      </div>
+      <div class="form-group">
+        <label class="coral">Stromverbrauch (kWh) *</label>
+        <input type="number" id="inp-verb" step="0.01" placeholder="10.5">
+      </div>
+      <div class="form-group">
+        <label class="teal">Wärmeertrag (kWh) *</label>
+        <input type="number" id="inp-ertr" step="0.01" placeholder="35.0">
+      </div>
+      <div class="form-group">
+        <label>Vorlauf (°C)</label>
+        <input type="number" id="inp-vl" step="0.1" placeholder="45">
+      </div>
+      <div class="form-group">
+        <label>Rücklauf (°C)</label>
+        <input type="number" id="inp-rl" step="0.1" placeholder="40">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save" onclick="saveReading()">Speichern</button>
+      <button class="btn btn-export" onclick="exportCsv()">CSV exportieren ↓</button>
+    </div>
+    <div class="success-msg" id="ok-msg">✓ Eintrag gespeichert!</div>
+    <div class="error-msg" id="err-msg"></div>
+  </div>
+
+  <!-- Entries -->
+  <div class="panel">
+    <div class="panel-title">Letzte Einträge</div>
+    <div class="entries-list" id="entries"></div>
+  </div>
+
+</div>
+
+<script>
+// Ingress-kompatibler Basispfad (funktioniert mit und ohne HA-Ingress-Prefix)
+const BASE = (() => { const p = window.location.pathname; return p.endsWith('/') ? p : p + '/'; })();
+
+let readings = [];
+let myChart = null;
+
+const jaz = r => r.verbrauch > 0 ? r.ertrag / r.verbrauch : null;
+const fmt = (v, d=1) => v != null ? Number(v).toFixed(d) : '–';
+const $ = id => document.getElementById(id);
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  $('inp-date').value = new Date().toISOString().split('T')[0];
+  loadAll();
+});
+
+async function loadAll() {
+  await loadReadings();
+  await loadStats();
+}
+
+async function loadReadings() {
+  try {
+    const res = await fetch(BASE + 'api/readings');
+    readings = await res.json();
+    renderAll();
+  } catch (e) {
+    console.error('Fehler beim Laden:', e);
+  }
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch(BASE + 'api/stats');
+    const stats = await res.json();
+    const spinner = $('avg-spinner');
+    if (spinner) spinner.remove();
+    $('avg-text').textContent = stats.overall_jaz != null
+      ? `Gesamt-JAZ ${stats.overall_jaz} · ${stats.count} Einträge`
+      : 'Noch keine Daten';
+  } catch (e) { /* ignore */ }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  renderMetrics();
+  renderChart();
+  renderEntries();
+}
+
+function renderMetrics() {
+  if (!readings.length) return;
+  const l = readings[readings.length - 1];
+  const j = jaz(l);
+  const avgJ = readings.reduce((s,r) => s + (jaz(r)||0), 0) / readings.length;
+  const totalV = readings.reduce((s,r) => s + r.verbrauch, 0);
+  const totalE = readings.reduce((s,r) => s + r.ertrag, 0);
+  const overallJ = totalV > 0 ? totalE / totalV : null;
+
+  const cards = [
+    { cls:'card-coral',  label:'Verbrauch',    val: fmt(l.verbrauch),    unit:'kWh' },
+    { cls:'card-teal',   label:'Wärmeertrag',  val: fmt(l.ertrag),       unit:'kWh' },
+    { cls:'card-amber',  label:'JAZ heute',    val: fmt(j, 2),           unit:'Arbeitszahl' },
+    { cls:'card-blue',   label:'Außentemp.',   val: fmt(l.aussenTemp),   unit:'°C' },
+    { cls:'card-purple', label:'Gesamt-JAZ',   val: fmt(overallJ, 2),    unit:'Saison' },
+  ];
+
+  $('metrics').innerHTML = cards.map(c => `
+    <div class="metric-card ${c.cls}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.val}</div>
+      <div class="unit">${c.unit}</div>
+    </div>`).join('');
+}
+
+function renderChart() {
+  const slice = readings.slice(-14);
+  if (!slice.length) return;
+
+  const labels    = slice.map(r => r.date.slice(5));
+  const verbData  = slice.map(r => r.verbrauch);
+  const ertragData= slice.map(r => r.ertrag);
+  const jazData   = slice.map(r => jaz(r) != null ? parseFloat(jaz(r).toFixed(2)) : null);
+
+  if (myChart) myChart.destroy();
+  myChart = new Chart($('chart'), {
+    data: {
+      labels,
+      datasets: [
+        { type:'bar',  data: verbData,   backgroundColor:'#3d1e14', borderColor:'#f59572', borderWidth:1, borderRadius:4, yAxisID:'y', label:'Verbrauch' },
+        { type:'bar',  data: ertragData, backgroundColor:'#0d3325', borderColor:'#5dd4a8', borderWidth:1, borderRadius:4, yAxisID:'y', label:'Ertrag' },
+        { type:'line', data: jazData, borderColor:'#f0b848', backgroundColor:'transparent',
+          borderWidth:2, pointBackgroundColor:'#f0b848', pointRadius:4, tension:0.35, yAxisID:'y2', label:'JAZ' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display:false }, tooltip: { mode:'index', intersect:false } },
+      scales: {
+        y:  { beginAtZero:true, grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#7b82a0', font:{size:11} } },
+        y2: { position:'right', beginAtZero:false, grid:{ drawOnChartArea:false }, ticks:{ color:'#7b82a0', font:{size:11}, callback: v=>v.toFixed(1) } },
+        x:  { ticks:{ color:'#7b82a0', font:{size:11}, autoSkip:false, maxRotation:45 }, grid:{ color:'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+
+function renderEntries() {
+  const el = $('entries');
+  if (!readings.length) {
+    el.innerHTML = '<div class="empty-state">Noch keine Einträge – trag deinen ersten Messwert ein!</div>';
+    return;
+  }
+  el.innerHTML = readings.slice(-10).reverse().map(r => {
+    const j = jaz(r);
+    return `<div class="entry-row">
+      <span class="entry-date">${r.date.slice(5)}</span>
+      <span class="pill pill-coral">${fmt(r.verbrauch)} kWh</span>
+      <span class="pill pill-teal">${fmt(r.ertrag)} kWh</span>
+      <span class="pill pill-amber">JAZ ${fmt(j,2)}</span>
+      <span class="pill pill-blue">${fmt(r.aussenTemp)} °C</span>
+      <span class="entry-meta">${r.vorlauf ? `${fmt(r.vorlauf)}/${fmt(r.ruecklauf)} °C` : ''}</span>
+      <button class="btn-delete" onclick="deleteEntry('${r.id}')" title="Eintrag löschen">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+async function saveReading() {
+  const btn = $('btn-save');
+  const date = $('inp-date').value;
+  const verb = parseFloat($('inp-verb').value);
+  const ertr = parseFloat($('inp-ertr').value);
+
+  if (!date || isNaN(verb) || isNaN(ertr) || verb <= 0 || ertr <= 0) {
+    showMsg('err-msg', 'Bitte Datum, Stromverbrauch und Wärmeertrag ausfüllen.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Speichern…';
+
+  try {
+    const res = await fetch(BASE + 'api/readings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date,
+        verbrauch: verb,
+        ertrag: ertr,
+        aussenTemp: parseFloat($('inp-temp').value) || 0,
+        vorlauf: parseFloat($('inp-vl').value) || 0,
+        ruecklauf: parseFloat($('inp-rl').value) || 0,
+      })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    ['inp-verb','inp-ertr','inp-temp','inp-vl','inp-rl'].forEach(id => $(id).value = '');
+    showMsg('ok-msg', '✓ Eintrag gespeichert!');
+    await loadAll();
+  } catch (e) {
+    showMsg('err-msg', 'Fehler beim Speichern: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Speichern';
+  }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+  try {
+    await fetch(BASE + `api/readings/${encodeURIComponent(id)}`, { method:'DELETE' });
+    await loadAll();
+  } catch (e) {
+    alert('Fehler beim Löschen');
+  }
+}
+
+function exportCsv() {
+  window.location.href = BASE + 'api/export/csv';
+}
+
+function showMsg(id, text) {
+  const el = $(id);
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3500);
+}
+</script>
+</body>
+</html>
